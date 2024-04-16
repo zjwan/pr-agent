@@ -1,14 +1,10 @@
-try:
-    from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
-    from langchain.schema import SystemMessage, HumanMessage
-except: # we don't enforce langchain as a dependency, so if it's not installed, just move on
-    pass
+import os
+from ollama import Client
 
 from pr_agent.algo.ai_handlers.base_ai_handler import BaseAiHandler
 from pr_agent.config_loader import get_settings
 from pr_agent.log import get_logger
 
-from openai.error import APIError, RateLimitError, Timeout, TryAgain
 from retry import retry
 import functools
 
@@ -18,6 +14,10 @@ class OllamaAIHandler(BaseAiHandler):
     def __init__(self):
         # Initialize OpenAIHandler specific attributes here
         super().__init__()
+        # although env:OLLAMA_HOST is supported in ollama library, we'd prefer to get host name explicit for better readability
+        self.host = get_settings().get("OLLAMA.HOST", os.getenv('OLLAMA_HOST'))
+        assert self.host is not None
+        self.client = Client(host=self.host)
     
     @property
     def chat(self):
@@ -30,17 +30,29 @@ class OllamaAIHandler(BaseAiHandler):
         """
         return None
 
-    @retry(exceptions=(APIError, Timeout, TryAgain, AttributeError, RateLimitError),
-           tries=OPENAI_RETRIES, delay=2, backoff=2, jitter=(1, 3))
-    async def chat_completion(self, model: str, system: str, user: str, temperature: float = 0.2):
+    async def chat_completion(self, system: str, user: str, model: str = "llama3", temperature: float = 0.2):
         try:
-            messages=[SystemMessage(content=system), HumanMessage(content=user)]
-            
-            # get a chat completion from the formatted messages
-            resp = self.chat(messages, model=model, temperature=temperature)
+            response = self.client.chat(
+                model=model,
+                messages=[
+                    {
+                        'role': 'system',
+                        'content': system,
+                    },
+                    {
+                        'role': 'user',
+                        'content': user,
+                    },
+                ],
+                options={
+                    "temperature": temperature
+                }
+            )
+            get_logger().info(response['message']['content'])
+
             finish_reason="completed"
-            return resp.content, finish_reason
+            return response['message']['content'], finish_reason
         
         except (Exception) as e:
-            get_logger().error("Unknown error during OpenAI inference: ", e)
+            get_logger().error("Unknown error during ollama inference: ", e)
             raise e

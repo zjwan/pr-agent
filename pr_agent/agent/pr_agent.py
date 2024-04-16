@@ -3,6 +3,7 @@ from functools import partial
 
 from pr_agent.algo.ai_handlers.base_ai_handler import BaseAiHandler
 from pr_agent.algo.ai_handlers.litellm_ai_handler import LiteLLMAIHandler
+from pr_agent.algo.ai_handlers.ollama_ai_handler import OllamaAIHandler
 
 from pr_agent.algo.utils import update_settings_from_args
 from pr_agent.config_loader import get_settings
@@ -47,7 +48,7 @@ command2class = {
 commands = list(command2class.keys())
 
 class PRAgent:
-    def __init__(self, ai_handler: partial[BaseAiHandler,] = LiteLLMAIHandler):
+    def __init__(self, ai_handler: partial[BaseAiHandler,] = OllamaAIHandler):
         self.ai_handler = ai_handler # will be initialized in run_action
         self.forbidden_cli_args = ['enable_auto_approval']
 
